@@ -1,0 +1,100 @@
+name: Android test APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compose-tilesets:
+    uses: ./.github/workflows/compose-tilesets.yml
+
+  compile-shaders:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/build-sdl3-shaders
+
+  build-apk:
+    needs: [compose-tilesets, compile-shaders]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-tags: true
+          persist-credentials: false
+
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android build dependencies
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;28.1.13356709" "cmake;3.22.1"
+
+      - name: Download tilesets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: tileset-*
+          path: gfx
+          merge-multiple: true
+
+      - name: Download shaders
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: cdda-shaders
+          path: data/shaders
+
+      - name: Add soundpack
+        run: |
+          git clone --depth=1 --shallow-submodules --recurse-submodules \
+            https://github.com/Fris0uman/CDDA-Soundpacks.git "$RUNNER_TEMP/soundpacks"
+          mv "$RUNNER_TEMP/soundpacks/sound/CC-Sounds" data/sound
+
+      - name: Create temporary signing key
+        working-directory: android
+        run: |
+          password="$(openssl rand -hex 32)"
+          echo "::add-mask::$password"
+          keytool -genkeypair -keystore "$RUNNER_TEMP/android-test.keystore" \
+            -storepass "$password" -keypass "$password" -alias android-test \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Cataclysm DDA test build"
+          {
+            echo "storeFile=$RUNNER_TEMP/android-test.keystore"
+            echo "storePassword=$password"
+            echo "keyAlias=android-test"
+            echo "keyPassword=$password"
+          } > keystore.properties
+
+      - name: Build ARM64 release APK
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon -Pj=2 -Pabi_arm_32=false -Plocalize=false assembleExperimentalRelease
+
+      - name: Verify and publish APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apks=(android/app/build/outputs/apk/experimental/release/*.apk)
+          if [ "${#apks[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one ARM64 APK, found ${#apks[@]}"
+            exit 1
+          fi
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "${apks[0]}"
+          unzip -Z -1 "${apks[0]}" | grep -Fx 'lib/arm64-v8a/libmain.so' > /dev/null
+          cp "${apks[0]}" cataclysm-dda-android-arm64-test.apk
+          gh release create "android-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            cataclysm-dda-android-arm64-test.apk \
+            --target "$GITHUB_SHA" \
+            --title "Android test build ${GITHUB_RUN_ID}" \
+            --notes "ARM64 experimental test build of ${GITHUB_SHA}. English only. Signed with a temporary key: it cannot update another build, and uninstalling an existing build may delete its saves." \
+            --prerelease
