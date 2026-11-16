@@ -1325,6 +1325,8 @@ class game
                 const tripoint_rel_omt &last, bool iso );
 
         weak_ptr_fast<ui_adaptor> main_ui_adaptor; // NOLINT(cata-serialize)
+        catacurses::window w_portrait_dashboard; // NOLINT(cata-serialize)
+        catacurses::window w_portrait_messages; // NOLINT(cata-serialize)
 
         std::unique_ptr<static_popup> wait_popup; // NOLINT(cata-serialize)
     public:

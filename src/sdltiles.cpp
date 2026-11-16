@@ -1004,10 +1004,7 @@ static bool android_shortcuts_above_keyboard()
            android_visible_ime_frame().has_value();
 }
 
-// area the display buffer is fitted into: the window, or its safe area with
-// ANDROID_RENDER_SAFE_AREA so the game clears the camera cutout, less the space
-// kept free at the bottom
-static SDL_Rect android_layout_bounds()
+static SDL_Rect android_usable_bounds()
 {
     SDL_Rect bounds{ 0, 0, WindowWidth, WindowHeight };
     if( get_option<bool>( "ANDROID_RENDER_SAFE_AREA" ) ) {
@@ -1023,7 +1020,17 @@ static SDL_Rect android_layout_bounds()
             bounds = safe;
         }
     }
-    const bool overlap = get_option<bool>( "ANDROID_SHORTCUT_OVERLAP" );
+    return bounds;
+}
+
+// Keep shortcut/keyboard reservations outside the gameplay grid. Interface Auto
+// uses the safe area before these reservations, not the terminal's aspect ratio.
+static SDL_Rect android_layout_bounds()
+{
+    SDL_Rect bounds = android_usable_bounds();
+    const bool portrait_layout = terminal_layout::use_portrait(
+                                     get_option<std::string>( "INTERFACE_LAYOUT" ), point( bounds.w, bounds.h ) );
+    const bool overlap = get_option<bool>( "ANDROID_SHORTCUT_OVERLAP" ) && !portrait_layout;
     int reserved = 0;
     if( terminal_layout::is_portrait( point( WindowWidth, WindowHeight ) ) ) {
         // independent of the runtime shortcut toggle, so hiding the strip
@@ -4647,7 +4654,6 @@ static bool apply_resize_layout( int w, int h )
     WindowHeight = h;
     refresh_drawable_dims();
 #if defined(__ANDROID__)
-    ( void )logical_changed;
     const android_text_layout want = android_desired_layout();
     android_buffer_scale = want.scale;
     point grid = want.grid;
@@ -4660,8 +4666,9 @@ static bool apply_resize_layout( int w, int h )
             grid = android_grid_for( point( fontwidth, fontheight ), want.scale );
         }
     }
-    // a new cell changes every pixel size even at the same grid, so lay out again
-    if( !cell_changed && grid.x == TERMINAL_WIDTH && grid.y == TERMINAL_HEIGHT ) {
+    // Rotation can change Interface Auto even when row/column caps keep the grid.
+    if( !cell_changed && grid.x == TERMINAL_WIDTH && grid.y == TERMINAL_HEIGHT &&
+        !logical_changed ) {
         return false;
     }
     TERMINAL_WIDTH = grid.x;
@@ -4677,6 +4684,16 @@ static bool apply_resize_layout( int w, int h )
         catacurses::stdscr = catacurses::newwin( TERMINAL_HEIGHT, TERMINAL_WIDTH, point::zero );
     }
     return logical_changed;
+#endif
+}
+
+point get_interface_layout_size()
+{
+#if defined(__ANDROID__)
+    const SDL_Rect bounds = android_usable_bounds();
+    return point( bounds.w, bounds.h );
+#else
+    return point( WindowWidth, WindowHeight );
 #endif
 }
 

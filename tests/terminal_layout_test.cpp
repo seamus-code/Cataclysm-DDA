@@ -1,3 +1,4 @@
+#include <initializer_list>
 #include <optional>
 #include <string>
 #include <vector>
@@ -26,6 +27,77 @@ TEST_CASE( "terminal_layout_orientation_follows_window_shape", "[terminal_layout
     CHECK_FALSE( terminal_layout::is_portrait( point( 2400, 1080 ) ) );
     // square window keeps the landscape terminal
     CHECK_FALSE( terminal_layout::is_portrait( point( 1000, 1000 ) ) );
+}
+
+TEST_CASE( "interface_layout_uses_pixels_not_text_grid", "[terminal_layout]" )
+{
+    // Both grids have more columns than rows, but only one screen is landscape.
+    const point portrait_pixels( 1080, 1800 );
+    const point landscape_pixels( 1800, 1080 );
+    CHECK( terminal_layout::use_portrait( "auto", portrait_pixels ) );
+    CHECK_FALSE( terminal_layout::use_portrait( "auto", landscape_pixels ) );
+    CHECK_FALSE( terminal_layout::use_portrait( "auto", point( 1080, 1080 ) ) );
+    CHECK_FALSE( terminal_layout::use_portrait( "auto", point::zero ) );
+    CHECK_FALSE( terminal_layout::use_portrait( "auto", point( 0, 1800 ) ) );
+    CHECK_FALSE( terminal_layout::use_portrait( "landscape", portrait_pixels ) );
+    CHECK( terminal_layout::use_portrait( "portrait", landscape_pixels ) );
+}
+
+TEST_CASE( "portrait_gameplay_regions_fit_the_usable_grid", "[terminal_layout]" )
+{
+    for( const point grid : {
+             point( 80, 24 ), point( 80, 65 ), point( 101, 100 )
+         } ) {
+        CAPTURE( grid );
+        const auto layout = terminal_layout::gameplay( grid, true, 0, 44 );
+        CHECK( layout.terrain.pos == point::zero );
+        CHECK( layout.terrain.size.x == grid.x );
+        CHECK( layout.terrain.size.y >= grid.y / 2 );
+        CHECK( layout.dashboard.pos == point( 0, layout.terrain.size.y ) );
+        CHECK( layout.dashboard.size.x == grid.x );
+        CHECK( layout.dashboard.size.y <= 6 );
+        CHECK( layout.messages.pos == layout.dashboard.pos + point( 0, layout.dashboard.size.y ) );
+        CHECK( layout.messages.size.x == grid.x );
+        CHECK( layout.messages.size.y >= 3 );
+        CHECK( layout.messages.pos.y + layout.messages.size.y == grid.y );
+    }
+}
+
+TEST_CASE( "landscape_gameplay_keeps_sidebar_geometry", "[terminal_layout]" )
+{
+    for( const int left : {
+             0, 44
+         } ) {
+        const int right = 44 - left;
+        const auto layout = terminal_layout::gameplay( point( 120, 40 ), false, left, right );
+        CHECK( layout.terrain.pos == point( left, 0 ) );
+        CHECK( layout.terrain.size == point( 76, 40 ) );
+        CHECK( layout.dashboard.size == point::zero );
+        CHECK( layout.messages.size == point::zero );
+    }
+}
+
+TEST_CASE( "transfer_panes_stack_without_losing_rows_or_identity", "[terminal_layout]" )
+{
+    for( const point grid : {
+             point( 80, 24 ), point( 80, 64 ), point( 101, 65 )
+         } ) {
+        CAPTURE( grid );
+        const auto panes = terminal_layout::transfer_panes( grid, 5, true );
+        CHECK( panes[0].pos == point( 0, 5 ) );
+        CHECK( panes[1].pos == panes[0].pos + point( 0, panes[0].size.y ) );
+        CHECK( panes[1].pos.y + panes[1].size.y == grid.y );
+        for( const auto &pane : panes ) {
+            CHECK( pane.size.x == grid.x );
+            // Category pagination needs at least a heading and one item.
+            CHECK( pane.size.y - 7 >= 2 );
+        }
+        const auto landscape = terminal_layout::transfer_panes( grid, 5, false );
+        CHECK( landscape[0].pos == point( 0, 5 ) );
+        CHECK( landscape[1].pos == point( grid.x / 2, 5 ) );
+        CHECK( landscape[0].size == point( grid.x / 2, grid.y - 5 ) );
+        CHECK( landscape[1].size == landscape[0].size );
+    }
 }
 
 TEST_CASE( "terminal_layout_portrait_reserve", "[terminal_layout]" )

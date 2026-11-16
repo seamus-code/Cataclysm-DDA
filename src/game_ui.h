@@ -5,6 +5,7 @@
 namespace game_ui
 {
 void init_ui();
+bool is_portrait_layout();
 } // namespace game_ui
 
 // defined in sdltiles.cpp

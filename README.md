@@ -96,6 +96,14 @@ Yes, you can find the tutorial in the **Special** menu at the main menu (be awar
 
 Press the `?` key, followed by the `1` key to see the full list of key commands. Press the `+` key to add a key binding, select which action with the corresponding letter key `a-w`, and then the key you wish to assign to that action.
 
+#### How can I use a portrait interface?
+
+Set **Options > Interface > Interface layout** to **Portrait**, or **Auto** to follow the usable screen's pixel dimensions. **Landscape** is the default. Text-only builds without pixel measurements keep Landscape in Auto. This is separate from Android's **Screen orientation** option, which controls device rotation.
+
+Portrait gameplay places a full-width map above a compact health, stamina, needs, and nearby-creature dashboard and recent messages. Tile zoom remains independent of text size. Android's bottom keyboard/shortcut reservation stays separate; shortcuts do not overlap the portrait dashboard.
+
+Advanced inventory stacks its transfer panes, with the left pane above the right. Existing pane-switching and transfer keys still work; resizing keeps selections, filters, and sorting. Item details use the full screen in portrait; confirm **Item actions** to use an inventory item, or quit to return to the panes. Other menus retain their existing layouts.
+
 #### How can I start a new world?
 
 **World** on the main menu will generate a fresh world for you. Select **Create World**.

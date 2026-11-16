@@ -37,6 +37,7 @@
 #include "enums.h"
 #include "game.h"
 #include "game_constants.h"
+#include "game_ui.h"
 #include "imgui/imgui.h"
 #include "input.h"
 #include "input_context.h"
@@ -58,6 +59,7 @@
 #include "ret_val.h"
 #include "string_formatter.h"
 #include "string_input_popup.h"
+#include "terminal_layout.h"
 #include "translations.h"
 #include "type_id.h"
 #include "uilist.h"
@@ -403,7 +405,7 @@ void advanced_inventory::print_items( side p, bool active )
 
     int pageStart = 0; // index of first item on current page
 
-    advanced_inventory_pagination pagination( linesPerPage, pane );
+    advanced_inventory_pagination pagination( linesPerPage[p], pane );
     if( !items.empty() ) {
         // paginate up to the current item (to count pages)
         for( int i = 0; i <= index; i++ ) {
@@ -421,7 +423,7 @@ void advanced_inventory::print_items( side p, bool active )
         int item_line = line;
         if( pane.sortby == SORTBY_CATEGORY && pagination.new_category( sitem.cat ) ) {
             // don't put category header at bottom of page
-            if( line == linesPerPage - 1 ) {
+            if( line == linesPerPage[p] - 1 ) {
                 break;
             }
             // insert category header
@@ -851,7 +853,7 @@ void advanced_inventory::redraw_pane( side p )
     trim_and_print( w, point( 2, 3 ), width, active ? c_cyan : c_dark_gray, square.flags );
 
     if( active ) {
-        advanced_inventory_pagination pagination( linesPerPage, pane );
+        advanced_inventory_pagination pagination( linesPerPage[p], pane );
         int cur_page = 0;
         for( int i = 0; i < static_cast<int>( pane.items.size() ); i++ ) {
             pagination.step( i );
@@ -876,7 +878,7 @@ void advanced_inventory::redraw_pane( side p )
         int itemcount = square.get_item_count();
         int fmtw = 7 + ( itemcount > 99 ? 3 : itemcount > 9 ? 2 : 1 ) +
                    ( max > 99 ? 3 : max > 9 ? 2 : 1 );
-        mvwprintz( w, point( w_width / 2 - fmtw, 0 ), active ? c_white : c_dark_gray, "< %d/%d >",
+        mvwprintz( w, point( getmaxx( w ) - fmtw, 0 ), active ? c_white : c_dark_gray, "< %d/%d >",
                    itemcount, max );
     }
 
@@ -1772,14 +1774,37 @@ void advanced_inventory::action_examine( advanced_inv_listitem *sitem,
 {
     int ret = 0;
     const auto info_width = [this]() -> int {
-        return w_width / 2;
+        return game_ui::is_portrait_layout() ? TERMX : w_width / 2;
     };
     const auto info_startx = [this]() -> int {
-        return colstart + ( src == advanced_inventory::side::left ? w_width / 2 : 0 );
+        return game_ui::is_portrait_layout() ? 0 :
+        colstart + ( src == advanced_inventory::side::left ? w_width / 2 : 0 );
     };
     avatar &player_character = get_avatar();
-    if( spane.get_area() == AIM_INVENTORY || spane.get_area() == AIM_WORN ||
-        ( spane.container && spane.container.carrier() == player_character.as_character() ) ) {
+    const bool owned = spane.get_area() == AIM_INVENTORY || spane.get_area() == AIM_WORN ||
+                       ( spane.container && spane.container.carrier() == player_character.as_character() );
+    if( !owned || game_ui::is_portrait_layout() ) {
+        item &it = *sitem->items.front();
+        std::vector<iteminfo> vThisItem;
+        std::vector<iteminfo> vDummy;
+        it.info( true, vThisItem );
+
+        item_info_data data( it.tname( 1, tname::unprefixed_tname, true ), it.type_name(), vThisItem,
+                             vDummy );
+        data.handle_scrolling = true;
+        data.arrow_scrolling = true;
+        data.any_input = !game_ui::is_portrait_layout();
+
+        iteminfo_window info_window( data, [info_startx]() {
+            return point( info_startx(), 0 );
+        }, [info_width]() {
+            return point( info_width(), TERMY );
+        }, owned ? _( "Item actions" ) : "" );
+        if( info_window.execute() != "CONFIRM" || !owned ) {
+            return;
+        }
+    }
+    if( owned ) {
         const item_location &loc = sitem->items.front();
         // Setup for a "return to AIM" in case examining the item creates a new activity
         // (e.g. reading, reloading, activating).
@@ -1798,19 +1823,6 @@ void advanced_inventory::action_examine( advanced_inv_listitem *sitem,
             uistate.transfer_save.exit_code = aim_exit::none;
         }
         recalc = true;
-    } else {
-        item &it = *sitem->items.front();
-        std::vector<iteminfo> vThisItem;
-        std::vector<iteminfo> vDummy;
-        it.info( true, vThisItem );
-
-        item_info_data data( it.tname( 1, tname::unprefixed_tname, true ), it.type_name(), vThisItem,
-                             vDummy );
-        data.handle_scrolling = true;
-        data.arrow_scrolling = true;
-
-        iteminfo_window info_window( data, point( info_startx(), 0 ), info_width(), TERMY );
-        info_window.execute();
     }
     if( ret == KEY_NPAGE || ret == KEY_DOWN ) {
         spane.scroll_by( +1 );
@@ -1956,9 +1968,9 @@ void advanced_inventory::process_action( const std::string &input_action )
     } else if( action == "QUIT" ) {
         exit = true;
     } else if( action == "PAGE_DOWN" ) {
-        spane.scroll_page( linesPerPage, +1 );
+        spane.scroll_page( linesPerPage[src], +1 );
     } else if( action == "PAGE_UP" ) {
-        spane.scroll_page( linesPerPage, -1 );
+        spane.scroll_page( linesPerPage[src], -1 );
     } else if( action == "HOME" ) {
         spane.scroll_to_start();
     } else if( action == "END" ) {
@@ -2026,10 +2038,10 @@ void advanced_inventory::display()
                                     TERMX - 2 * ( panel_manager::get_manager().get_width_right() +
                                                   panel_manager::get_manager().get_width_left() ) );
 
-            w_height = std::max( min_w_height, TERMY - head_height );
-            w_width = std::clamp( TERMX, min_w_width, max_w_width );
+            stacked = game_ui::is_portrait_layout();
+            const int height = std::max( min_w_height, TERMY - head_height );
+            w_width = stacked ? TERMX : std::clamp( TERMX, min_w_width, max_w_width );
 
-            //(TERMY>w_height)?(TERMY-w_height)/2:0;
             headstart = 0;
             colstart = TERMX > w_width ? ( TERMX - w_width ) / 2 : 0;
 
@@ -2038,19 +2050,23 @@ void advanced_inventory::display()
                                             point( colstart + ( w_width - ( minimap_width + 2 ) ), headstart ) );
             minimap = catacurses::newwin( minimap_height, minimap_width,
                                           point( colstart + ( w_width - ( minimap_width + 1 ) ), headstart + 1 ) );
-            panes[left].window = catacurses::newwin( w_height, w_width / 2, point( colstart,
-                                 headstart + head_height ) );
-            panes[right].window = catacurses::newwin( w_height, w_width / 2, point( colstart + w_width / 2,
-                                  headstart + head_height ) );
-
-            // 2 for the borders, 5 for the header stuff
-            linesPerPage = w_height - 2 - 5;
-
-            if( filter_edit && spopup ) {
-                spopup->window( panes[src].window, point( 4, w_height - 1 ), w_width / 2 - 4 );
+            const std::array<terminal_layout::region, 2> regions = terminal_layout::transfer_panes(
+                        point( w_width, height + head_height ), head_height, stacked );
+            for( const side p : {
+                     left, right
+                 } ) {
+                panes[p].window = catacurses::newwin( regions[p].size.y, regions[p].size.x,
+                                                      regions[p].pos + point( colstart, headstart ) );
+                // Two borders and five header rows.
+                linesPerPage[p] = regions[p].size.y - 7;
             }
 
-            ui.position( point( colstart, headstart ), point( w_width, head_height + w_height ) );
+            if( filter_edit && spopup ) {
+                spopup->window( panes[src].window, point( 4, getmaxy( panes[src].window ) - 1 ),
+                                getmaxx( panes[src].window ) - 4 );
+            }
+
+            ui.position( point( colstart, headstart ), point( w_width, head_height + height ) );
         } );
         ui->mark_resize();
 
@@ -2061,10 +2077,18 @@ void advanced_inventory::display()
 
             redraw_pane( advanced_inventory::side::left );
             redraw_pane( advanced_inventory::side::right );
-            if( panes[0].other_cont > -1 && panes[0].other_cont < linesPerPage ) {
+            if( stacked && ( panes[0].other_cont >= 0 || panes[1].other_cont >= 0 ) ) {
+                const int x = w_width / 2;
+                mvwprintz( panes[left].window, point( x, getmaxy( panes[left].window ) - 1 ), c_brown,
+                           panes[0].other_cont >= 0 ? "v" : "^" );
+                mvwprintz( panes[right].window, point( x, 0 ), c_brown,
+                           panes[0].other_cont >= 0 ? "v" : "^" );
+            } else if( !stacked && panes[0].other_cont > -1 &&
+                       panes[0].other_cont < linesPerPage[left] ) {
                 mvwprintz( panes[0].window, point( w_width / 2 - 1, panes[0].other_cont + 6 ), i_brown, " " );
                 mvwprintz( panes[1].window, point( 0, panes[0].other_cont + 6 ), c_brown, "▶" );
-            } else if( panes[1].other_cont > -1 && panes[1].other_cont < linesPerPage ) {
+            } else if( !stacked && panes[1].other_cont > -1 &&
+                       panes[1].other_cont < linesPerPage[right] ) {
                 mvwprintz( panes[0].window, point( w_width / 2 - 1, panes[1].other_cont + 6 ), c_brown, "◀" );
                 mvwprintz( panes[1].window, point( 0, panes[1].other_cont + 6 ), i_brown, " " );
             }
@@ -2073,9 +2097,11 @@ void advanced_inventory::display()
             redraw_sidebar();
 
             if( filter_edit && spopup ) {
-                draw_item_filter_rules( panes[dest].window, 1, w_height - 2, item_filter_type::FILTER );
+                draw_item_filter_rules( panes[dest].window, 1, getmaxy( panes[dest].window ) - 2,
+                                        item_filter_type::FILTER );
                 mvwprintz( panes[src].window, point( 2, getmaxy( panes[src].window ) - 1 ), c_cyan, "< " );
-                mvwprintz( panes[src].window, point( w_width / 2 - 4, getmaxy( panes[src].window ) - 1 ), c_cyan,
+                mvwprintz( panes[src].window, point( getmaxx( panes[src].window ) - 4,
+                                                     getmaxy( panes[src].window ) - 1 ), c_cyan,
                            " >" );
                 spopup->query_string( /*loop=*/false, /*draw_only=*/true );
             }

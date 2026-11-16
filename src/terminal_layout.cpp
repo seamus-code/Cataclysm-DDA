@@ -1,6 +1,7 @@
 #include "terminal_layout.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -14,6 +15,41 @@ namespace terminal_layout
 bool is_portrait( const point &window )
 {
     return window.y > window.x;
+}
+
+bool use_portrait( const std::string &choice, const point &usable_pixels )
+{
+    return choice == "portrait" || ( choice == "auto" && usable_pixels.x > 0 &&
+                                     is_portrait( usable_pixels ) );
+}
+
+gameplay_layout gameplay( const point &grid, const bool portrait, const int sidebar_left,
+                          const int sidebar_right )
+{
+    if( !portrait ) {
+        return { { point( sidebar_left, 0 ), point( grid.x - sidebar_left - sidebar_right, grid.y ) },
+            { point::zero, point::zero }, { point::zero, point::zero } };
+    }
+    const int dashboard_height = 6;
+    const int message_height = std::clamp( grid.y / 5, 3, 8 );
+    const int terrain_height = grid.y - dashboard_height - message_height;
+    return { { point::zero, point( grid.x, terrain_height ) },
+        { point( 0, terrain_height ), point( grid.x, dashboard_height ) },
+        { point( 0, terrain_height + dashboard_height ), point( grid.x, message_height ) } };
+}
+
+std::array<region, 2> transfer_panes( const point &grid, const int header_height,
+                                      const bool portrait )
+{
+    const int height = grid.y - header_height;
+    if( portrait ) {
+        return { { { point( 0, header_height ), point( grid.x, height / 2 ) },
+                { point( 0, header_height + height / 2 ), point( grid.x, height - height / 2 ) }
+            } };
+    }
+    return { { { point( 0, header_height ), point( grid.x / 2, height ) },
+            { point( grid.x / 2, header_height ), point( grid.x / 2, height ) }
+        } };
 }
 
 int portrait_reserved_bottom( const int window_height, const int reserve_percent,

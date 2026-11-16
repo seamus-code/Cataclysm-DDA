@@ -93,9 +93,9 @@ class advanced_inventory
 
         bool inCategoryMode = false;
 
-        int linesPerPage = 0;
-        int w_height = 0;
+        std::array<int, NUM_PANES> linesPerPage = {};
         int w_width = 0;
+        bool stacked = false;
 
         int headstart = 0;
         int colstart = 0;
