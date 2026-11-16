@@ -2,6 +2,7 @@
 #ifndef CATA_SRC_TERMINAL_LAYOUT_H
 #define CATA_SRC_TERMINAL_LAYOUT_H
 
+#include <array>
 #include <optional>
 #include <string>
 #include <vector>
@@ -14,6 +15,25 @@ namespace terminal_layout
 
 // window taller than it is wide. a square window counts as landscape
 bool is_portrait( const point &window );
+
+// Explicit layout overrides the usable pixel aspect ratio. Squares use landscape.
+bool use_portrait( const std::string &choice, const point &usable_pixels );
+
+struct region {
+    point pos;
+    point size;
+};
+
+struct gameplay_layout {
+    region terrain;
+    region dashboard;
+    region messages;
+};
+
+// Supported grids (at least 80x24), excluding platform-reserved shortcut/keyboard space.
+gameplay_layout gameplay( const point &grid, bool portrait, int sidebar_left, int sidebar_right );
+// Pane identity is stable: left becomes top, right becomes bottom.
+std::array<region, 2> transfer_panes( const point &grid, int header_height, bool portrait );
 
 // pixels kept free along the bottom of a portrait window: the given share of
 // the height, or the shortcut strip if that's taller

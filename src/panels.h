@@ -40,6 +40,7 @@ void draw_overmap_chunk_imgui( const avatar &you, const tripoint_abs_omt &global
 } // namespace overmap_ui
 
 bool default_render();
+void draw_portrait_dashboard( const avatar &you, const catacurses::window &w );
 
 // Arguments to pass into the static draw function (in window_panel::draw)
 // Includes public avatar (_ava) and window (_win) references, and private widget reference

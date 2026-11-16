@@ -200,6 +200,7 @@
 #include "surroundings_menu.h"
 #include "talker.h"
 #include "temp_crafting_inventory.h"
+#include "terminal_layout.h"
 #include "text_snippets.h"
 #include "tileray.h"
 #include "timed_event.h"
@@ -2240,6 +2241,9 @@ int game::inventory_item_menu( item_location locThisItem,
                             x = ImGui::GetMainViewport()->Size.x - popup_width;
                             break;
                     }
+                    if( game_ui::is_portrait_layout() ) {
+                        x = std::max( 0.0f, ImGui::GetMainViewport()->Size.x - popup_width );
+                    }
                     action_menu.desired_bounds = { x, 0.0, popup_width, -1.0 };
                     action_menu.reposition();
                 } );
@@ -3179,8 +3183,11 @@ shared_ptr_fast<ui_adaptor> game::create_or_get_main_ui_adaptor()
             const int sidebar_left = panel_manager::get_manager().get_width_left();
             const int sidebar_right = panel_manager::get_manager().get_width_right();
 
-            TERRAIN_WINDOW_HEIGHT = TERMY;
-            TERRAIN_WINDOW_WIDTH = TERMX - ( sidebar_left + sidebar_right );
+            const bool portrait = game_ui::is_portrait_layout();
+            const terminal_layout::gameplay_layout layout = terminal_layout::gameplay(
+                        point( TERMX, TERMY ), portrait, sidebar_left, sidebar_right );
+            TERRAIN_WINDOW_HEIGHT = layout.terrain.size.y;
+            TERRAIN_WINDOW_WIDTH = layout.terrain.size.x;
             TERRAIN_WINDOW_TERM_WIDTH = TERRAIN_WINDOW_WIDTH;
             TERRAIN_WINDOW_TERM_HEIGHT = TERRAIN_WINDOW_HEIGHT;
 
@@ -3213,7 +3220,11 @@ shared_ptr_fast<ui_adaptor> game::create_or_get_main_ui_adaptor()
             POSY = TERRAIN_WINDOW_HEIGHT / 2;
 
             w_terrain = w_terrain_ptr = catacurses::newwin( TERRAIN_WINDOW_HEIGHT, TERRAIN_WINDOW_WIDTH,
-                                        point( sidebar_left, 0 ) );
+                                        layout.terrain.pos );
+            w_portrait_dashboard = portrait ? catacurses::newwin( layout.dashboard.size.y,
+                                   layout.dashboard.size.x, layout.dashboard.pos ) : catacurses::window();
+            w_portrait_messages = portrait ? catacurses::newwin( layout.messages.size.y,
+                                  layout.messages.size.x, layout.messages.pos ) : catacurses::window();
 
             // minimap is always MINIMAP_WIDTH x MINIMAP_HEIGHT in size
             w_minimap = w_minimap_ptr = catacurses::newwin( MINIMAP_HEIGHT, MINIMAP_WIDTH, point::zero );
@@ -3414,6 +3425,14 @@ void game::draw( ui_adaptor &ui )
 
 void game::draw_panels( bool force_draw )
 {
+    if( w_portrait_dashboard ) {
+        draw_portrait_dashboard( u, w_portrait_dashboard );
+        werase( w_portrait_messages );
+        Messages::display_messages( w_portrait_messages, 0, 0,
+                                    getmaxx( w_portrait_messages ), getmaxy( w_portrait_messages ) - 1 );
+        wnoutrefresh( w_portrait_messages );
+        return;
+    }
     static int previous_turn = -1;
     const int current_turn = to_turns<int>( calendar::turn - calendar::turn_zero );
     const bool draw_this_turn = current_turn > previous_turn || force_draw;

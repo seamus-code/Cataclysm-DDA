@@ -2196,6 +2196,13 @@ void options_manager::add_options_interface()
     add_option_group( "interface", Group( "sidb_opts", to_translation( "Sidebar interface options" ),
                                           to_translation( "Options regarding sidebar interface." ) ),
     [&]( const std::string & page_id ) {
+        add( "INTERFACE_LAYOUT", page_id, to_translation( "Interface layout" ),
+             to_translation( "Landscape keeps the side panel.  Portrait places a compact dashboard and messages below the game view and stacks advanced inventory panes.  Auto follows the usable screen's pixel dimensions, independently of screen orientation and text size." ),
+        {
+            { "landscape", to_translation( "Landscape" ) }, { "portrait", to_translation( "Portrait" ) },
+            { "auto", to_translation( "Auto" ) }
+        }, "landscape" );
+
         add( "SIDEBAR_POSITION", page_id, to_translation( "Sidebar position" ),
              to_translation( "Switch between sidebar on the left or on the right side.  Requires restart." ),
              //~ sidebar position
@@ -3359,7 +3366,7 @@ void options_manager::add_options_android()
            );
 
         add( "ANDROID_SHORTCUT_OVERLAP", page_id, to_translation( "Shortcuts overlap screen" ),
-             to_translation( "If true, shortcuts will be drawn transparently overlapping the game screen.  If false, the game screen size will be reduced to fit the shortcuts below.  In portrait, shortcuts always sit in the free area below the game screen." ),
+             to_translation( "If true, shortcuts will be drawn transparently overlapping the game screen.  If false, the game screen size will be reduced to fit the shortcuts below.  With the Portrait interface layout, space for shortcuts is always reserved below the game screen." ),
              true
            );
 
@@ -4189,6 +4196,8 @@ std::string options_manager::show( bool ingame, const bool world_options_only, b
 #endif
     if( ingame ) {
         refresh_tiles( used_tiles_changed, pixel_minimap_changed, ingame );
+        // Rotation can have applied an unsaved interface layout before cancellation.
+        g->mark_main_ui_adaptor_resize();
     }
     return "";
 }

@@ -12,6 +12,7 @@
 #include <utility>
 
 #include "avatar.h"
+#include "bodypart.h"
 #include "cached_options.h"
 #include "cata_imgui.h"  // IWYU pragma: keep
 #include "cata_utility.h"
@@ -80,6 +81,59 @@ window_panel::window_panel(
 // ====================================
 // panels prettify and helper functions
 // ====================================
+
+void draw_portrait_dashboard( const avatar &you, const catacurses::window &w )
+{
+    werase( w );
+    const int width = getmaxx( w );
+    mvwhline( w, point::zero, LINE_OXOX, width );
+
+    const std::vector<bodypart_id> parts = you.get_all_body_parts( get_body_part_flags::only_main );
+    const int columns = std::max( 1, ( static_cast<int>( parts.size() ) + 1 ) / 2 );
+    const int cell_width = width / columns;
+    for( size_t i = 0; i < parts.size(); ++i ) {
+        const bodypart_id &bp = parts[i];
+        const auto bar = get_hp_bar( you.get_part_hp_cur( bp ), you.get_part_hp_max( bp ) );
+        const int col = static_cast<int>( i ) % columns;
+        const int row = static_cast<int>( i ) / columns + 1;
+        const std::string label = colorize( body_part_hp_bar_ui_text( bp ),
+                                            display::limb_color( you, bp, true, true, true ) );
+        trim_and_print( w, point( col * cell_width, row ), cell_width - 1, c_light_gray,
+                        "%s %s", label, colorize( bar.first, bar.second ) );
+    }
+
+    const int third = width / 3;
+    const auto stamina = get_hp_bar( you.get_stamina(), you.get_stamina_max() );
+    trim_and_print( w, point( 0, 3 ), third - 1, c_light_gray, _( "Stamina: %s" ),
+                    colorize( stamina.first, stamina.second ) );
+    const auto pain = display::pain_text_color( you );
+    trim_and_print( w, point( third, 3 ), third - 1, pain.second, pain.first );
+    const auto safe = display::safe_mode_text_color( false );
+    trim_and_print( w, point( third * 2, 3 ), width - third * 2, safe.second, _( "Safe mode: %s" ),
+                    safe.first );
+
+    const auto hunger = display::hunger_text_color( you );
+    const auto thirst = display::thirst_text_color( you );
+    const auto sleepiness = display::sleepiness_text_color( you );
+    trim_and_print( w, point( 0, 4 ), third - 1, c_light_gray, _( "Hunger: %s" ),
+                    colorize( hunger.first, hunger.second ) );
+    trim_and_print( w, point( third, 4 ), third - 1, c_light_gray, _( "Thirst: %s" ),
+                    colorize( thirst.first, thirst.second ) );
+    trim_and_print( w, point( third * 2, 4 ), width - third * 2, c_light_gray, _( "Sleep: %s" ),
+                    colorize( sleepiness.first, sleepiness.second ) );
+
+    int height = 0;
+    std::string nearby = display::colorized_compass_legend_text( width, 1, height );
+    if( nearby.empty() ) {
+        nearby = _( "No nearby creatures" );
+    }
+    const bool danger = you.get_mon_visible().has_dangerous_creature_in_proximity;
+    if( danger ) {
+        nearby = string_format( _( "Danger!  %s" ), nearby );
+    }
+    trim_and_print( w, point( 0, 5 ), width, danger ? c_light_red : c_light_gray, nearby );
+    wnoutrefresh( w );
+}
 
 static std::string trunc_ellipse( const std::string &input, unsigned int trunc )
 {
@@ -458,6 +512,9 @@ std::string panel_manager::get_current_layout_id() const
 
 int panel_manager::get_width_right() const
 {
+    if( game_ui::is_portrait_layout() ) {
+        return 0;
+    }
     if( get_option<std::string>( "SIDEBAR_POSITION" ) == "left" ) {
         return width_left;
     }
@@ -466,6 +523,9 @@ int panel_manager::get_width_right() const
 
 int panel_manager::get_width_left() const
 {
+    if( game_ui::is_portrait_layout() ) {
+        return 0;
+    }
     if( get_option<std::string>( "SIDEBAR_POSITION" ) == "left" ) {
         return width_right;
     }
