@@ -470,6 +470,12 @@ To produce a Play Store-style AAB:
 
 Sign-off with `bundletool build-apks --bundle .../app.aab --output app.apks --connected-device` then `bundletool install-apks --apks app.apks --connected-device` to test the actual split-config delivery path.
 
+### GitHub Actions test APK
+
+Once the Android test APK workflow is on the default branch, run it from **Actions > Android test APK > Run workflow** and select the branch to build. It publishes an ARM64 experimental APK as a prerelease under **Releases**. The build includes tilesets and sound, but is English only.
+
+The workflow generates a new signing key for each run. Its APK cannot update an existing installation signed with another key, including a previous test build. Back up your saves before uninstalling an existing installation. Use a persistent release keystore instead for builds intended to support updates.
+
 ### Additional notes
 
 The app stores data files on the device in `/sdcard/Android/data/com.cleverraven.cataclysmdda/files`. Saves are backwards compatible with the desktop version.
