@@ -3184,8 +3184,10 @@ shared_ptr_fast<ui_adaptor> game::create_or_get_main_ui_adaptor()
             const int sidebar_right = panel_manager::get_manager().get_width_right();
 
             const bool portrait = game_ui::is_portrait_layout();
+            const bool bottom = get_option<std::string>( "SIDEBAR_POSITION" ) == "bottom";
             const terminal_layout::gameplay_layout layout = terminal_layout::gameplay(
-                        point( TERMX, TERMY ), portrait, sidebar_left, sidebar_right );
+                        point( TERMX, TERMY ), portrait, sidebar_left, sidebar_right,
+                        bottom ? TERMY * get_option<int>( "SIDEBAR_BOTTOM_HEIGHT" ) / 100 : 0 );
             TERRAIN_WINDOW_HEIGHT = layout.terrain.size.y;
             TERRAIN_WINDOW_WIDTH = layout.terrain.size.x;
             TERRAIN_WINDOW_TERM_WIDTH = TERRAIN_WINDOW_WIDTH;
@@ -3221,9 +3223,9 @@ shared_ptr_fast<ui_adaptor> game::create_or_get_main_ui_adaptor()
 
             w_terrain = w_terrain_ptr = catacurses::newwin( TERRAIN_WINDOW_HEIGHT, TERRAIN_WINDOW_WIDTH,
                                         layout.terrain.pos );
-            w_portrait_dashboard = portrait ? catacurses::newwin( layout.dashboard.size.y,
+            w_portrait_dashboard = portrait && !bottom ? catacurses::newwin( layout.dashboard.size.y,
                                    layout.dashboard.size.x, layout.dashboard.pos ) : catacurses::window();
-            w_portrait_messages = portrait ? catacurses::newwin( layout.messages.size.y,
+            w_portrait_messages = portrait && !bottom ? catacurses::newwin( layout.messages.size.y,
                                   layout.messages.size.x, layout.messages.pos ) : catacurses::window();
 
             // minimap is always MINIMAP_WIDTH x MINIMAP_HEIGHT in size
@@ -3431,6 +3433,37 @@ void game::draw_panels( bool force_draw )
         Messages::display_messages( w_portrait_messages, 0, 0,
                                     getmaxx( w_portrait_messages ), getmaxy( w_portrait_messages ) - 1 );
         wnoutrefresh( w_portrait_messages );
+        return;
+    }
+    if( get_option<std::string>( "SIDEBAR_POSITION" ) == "bottom" ) {
+        const terminal_layout::region area {
+            point( 0, TERRAIN_WINDOW_TERM_HEIGHT ),
+            point( TERMX, TERMY - TERRAIN_WINDOW_TERM_HEIGHT )
+        };
+        catacurses::window background = catacurses::newwin( area.size.y, area.size.x, area.pos );
+        werase( background );
+        wnoutrefresh( background );
+        std::vector<const window_panel *> panels;
+        std::vector<int> heights;
+        for( const window_panel &panel : panel_manager::get_manager().get_current_layout().panels() ) {
+            if( panel.toggle && panel.render() && panel.get_height() != 0 ) {
+                panels.push_back( &panel );
+                heights.push_back( panel.get_height() );
+            }
+        }
+        // A hidden or clipped minimap must not keep drawing over another widget.
+        w_pixel_minimap = catacurses::newwin( 1, 1, point::zero );
+        if( !panels.empty() ) {
+            const auto regions = terminal_layout::sidebar_columns( area, panels.front()->get_width(),
+                                 heights, get_option<bool>( "SIDEBAR_SPACERS" ) ? 1 : 0 );
+            for( size_t i = 0; i < panels.size(); ++i ) {
+                const terminal_layout::region &r = regions[i];
+                if( r.size.y > 0 ) {
+                    const catacurses::window w = catacurses::newwin( r.size.y, r.size.x, r.pos );
+                    panels[i]->draw( { u, w, panels[i]->get_widget() } );
+                }
+            }
+        }
         return;
     }
     static int previous_turn = -1;

@@ -100,6 +100,80 @@ TEST_CASE( "transfer_panes_stack_without_losing_rows_or_identity", "[terminal_la
     }
 }
 
+TEST_CASE( "bottom_sidebar_overrides_compact_portrait_without_reducing_map_width",
+           "[terminal_layout]" )
+{
+    for( const bool portrait : {
+             false, true
+         } ) {
+        const auto layout = terminal_layout::gameplay( point( 81, 65 ), portrait, 44, 44, 26 );
+        CHECK( layout.terrain.pos == point::zero );
+        CHECK( layout.terrain.size == point( 81, 39 ) );
+        CHECK( layout.dashboard.pos == point( 0, 39 ) );
+        CHECK( layout.dashboard.size == point( 81, 26 ) );
+        CHECK( layout.messages.size == point::zero );
+    }
+}
+
+TEST_CASE( "bottom_sidebar_balances_widgets_and_expands_log_without_overlap",
+           "[terminal_layout]" )
+{
+    const terminal_layout::region area { point( 0, 30 ), point( 81, 20 ) };
+    const auto panels = terminal_layout::sidebar_columns( area, 44, { 8, 3, 4, -2, 2 }, 1 );
+    REQUIRE( panels.size() == 5 );
+    // Narrow screens still fit two columns, including an odd leftover column.
+    CHECK( panels[0].pos == point( 0, 30 ) );
+    CHECK( panels[0].size == point( 40, 9 ) );
+    CHECK( panels[1].pos == point( 40, 30 ) );
+    CHECK( panels[1].size == point( 41, 4 ) );
+    CHECK( panels[2].pos == point( 40, 34 ) );
+    CHECK( panels[2].size == point( 41, 5 ) );
+    CHECK( panels[3].pos == point( 0, 39 ) );
+    CHECK( panels[3].size == point( 40, 11 ) );
+    CHECK( panels[4].pos == point( 40, 39 ) );
+    CHECK( panels[4].size == point( 41, 3 ) );
+
+    // A log placed before other panels must leave them room in the same column.
+    const auto log_first = terminal_layout::sidebar_columns( area, 44, { -2, 8, 2 }, 0 );
+    REQUIRE( log_first.size() == 3 );
+    CHECK( log_first[0].size.y == 18 );
+    CHECK( log_first[2].pos == point( 0, 48 ) );
+    CHECK( log_first[2].size.y == 2 );
+}
+
+TEST_CASE( "bottom_sidebar_handles_resizing_overflow_and_empty_layouts", "[terminal_layout]" )
+{
+    CHECK( terminal_layout::sidebar_columns( { point::zero, point( 80, 10 ) },
+            44, {}, 0 ).empty() );
+    for( const point size : {
+             point( 80, 9 ), point( 81, 26 ), point( 180, 16 )
+         } ) {
+        const terminal_layout::region area { point( 0, 20 ), size };
+        const auto panels = terminal_layout::sidebar_columns( area, 44, { 20, 2, 4, -2, 30, 2 }, 1 );
+        REQUIRE( panels.size() == 6 );
+        for( size_t i = 0; i < panels.size(); ++i ) {
+            const auto &p = panels[i];
+            CHECK( p.pos.x >= 0 );
+            CHECK( p.pos.y >= area.pos.y );
+            CHECK( p.size.x > 0 );
+            CHECK( p.size.y >= 0 );
+            CHECK( p.pos.x + p.size.x <= size.x );
+            CHECK( p.pos.y + p.size.y <= area.pos.y + size.y );
+            for( size_t j = 0; j < i; ++j ) {
+                const auto &q = panels[j];
+                CHECK( ( p.pos.x + p.size.x <= q.pos.x ||
+                         q.pos.x + q.size.x <= p.pos.x ||
+                         p.pos.y + p.size.y <= q.pos.y ||
+                         q.pos.y + q.size.y <= p.pos.y ) );
+            }
+        }
+        if( size.x == 180 ) {
+            CHECK( panels[0].size.x == 45 );
+            CHECK( panels[3].pos.x == 135 );
+        }
+    }
+}
+
 TEST_CASE( "terminal_layout_portrait_reserve", "[terminal_layout]" )
 {
     GIVEN( "shortcut strip overlaps the view" ) {

@@ -31,7 +31,11 @@ struct gameplay_layout {
 };
 
 // Supported grids (at least 80x24), excluding platform-reserved shortcut/keyboard space.
-gameplay_layout gameplay( const point &grid, bool portrait, int sidebar_left, int sidebar_right );
+gameplay_layout gameplay( const point &grid, bool portrait, int sidebar_left, int sidebar_right,
+                          int bottom_height = 0 );
+// Heights are in saved panel order; -2 denotes a message log that fills its column.
+std::vector<region> sidebar_columns( const region &area, int preferred_width,
+                                     const std::vector<int> &heights, int spacer );
 // Pane identity is stable: left becomes top, right becomes bottom.
 std::array<region, 2> transfer_panes( const point &grid, int header_height, bool portrait );
 

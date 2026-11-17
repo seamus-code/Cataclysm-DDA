@@ -102,6 +102,8 @@ Set **Options > Interface > Interface layout** to **Portrait**, or **Auto** to f
 
 Portrait gameplay places a full-width map above a compact health, stamina, needs, and nearby-creature dashboard and recent messages. Tile zoom remains independent of text size. Android's bottom keyboard/shortcut reservation stays separate; shortcuts do not overlap the portrait dashboard.
 
+To put the full configurable sidebar below the map instead, set **Options > Interface > Sidebar position** to **Bottom**. This works with Landscape, Portrait, and Auto; in Portrait it replaces the compact dashboard and its separate messages. The existing sidebar editor still selects the layout, toggles widgets, and changes their order. Widgets are placed in saved order into the shortest column, with at least two columns on supported screen widths; the message log fills spare space in its column. **Bottom sidebar height** controls the percentage of usable screen height reserved (40% by default), excluding Android keyboard/shortcut space. Increase it or disable widgets if panels are clipped; wider screens fit more columns.
+
 Advanced inventory stacks its transfer panes, with the left pane above the right. Existing pane-switching and transfer keys still work; resizing keeps selections, filters, and sorting. Item details use the full screen in portrait; confirm **Item actions** to use an inventory item, or quit to return to the panes. Other menus retain their existing layouts.
 
 #### How can I start a new world?

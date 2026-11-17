@@ -2204,10 +2204,17 @@ void options_manager::add_options_interface()
         }, "landscape" );
 
         add( "SIDEBAR_POSITION", page_id, to_translation( "Sidebar position" ),
-             to_translation( "Switch between sidebar on the left or on the right side.  Requires restart." ),
+             to_translation( "Place the configurable sidebar on the left, right, or below the game view.  Bottom uses multiple columns and replaces the compact dashboard in Portrait layout." ),
              //~ sidebar position
-        { { "left", to_translation( "Left" ) }, { "right", to_translation( "Right" ) } }, "right"
+        {   { "left", to_translation( "Left" ) }, { "right", to_translation( "Right" ) },
+            { "bottom", to_translation( "Bottom" ) }
+        }, "right"
            );
+
+        add( "SIDEBAR_BOTTOM_HEIGHT", page_id, to_translation( "Bottom sidebar height" ),
+             to_translation( "Percentage of the usable screen height reserved for the bottom sidebar.  Increase this if enabled widgets do not fit, or disable widgets in the sidebar editor.  Does not include Android keyboard or shortcut space." ),
+             20, 70, 40, COPT_NO_HIDE, "%i%%" );
+        get_option( "SIDEBAR_BOTTOM_HEIGHT" ).setPrerequisite( "SIDEBAR_POSITION", "bottom" );
 
         add( "SIDEBAR_SPACERS", page_id, to_translation( "Draw sidebar spacers" ),
              to_translation( "If true, adds an extra space between sidebar panels." ),

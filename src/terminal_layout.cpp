@@ -24,8 +24,14 @@ bool use_portrait( const std::string &choice, const point &usable_pixels )
 }
 
 gameplay_layout gameplay( const point &grid, const bool portrait, const int sidebar_left,
-                          const int sidebar_right )
+                          const int sidebar_right, const int bottom_height )
 {
+    if( bottom_height > 0 ) {
+        const int height = std::clamp( bottom_height, 1, grid.y - 1 );
+        return { { point::zero, point( grid.x, grid.y - height ) },
+            { point( 0, grid.y - height ), point( grid.x, height ) },
+            { point::zero, point::zero } };
+    }
     if( !portrait ) {
         return { { point( sidebar_left, 0 ), point( grid.x - sidebar_left - sidebar_right, grid.y ) },
             { point::zero, point::zero }, { point::zero, point::zero } };
@@ -36,6 +42,36 @@ gameplay_layout gameplay( const point &grid, const bool portrait, const int side
     return { { point::zero, point( grid.x, terrain_height ) },
         { point( 0, terrain_height ), point( grid.x, dashboard_height ) },
         { point( 0, terrain_height + dashboard_height ), point( grid.x, message_height ) } };
+}
+
+std::vector<region> sidebar_columns( const region &area, const int preferred_width,
+                                     const std::vector<int> &heights, const int spacer )
+{
+    const int columns = std::max( area.size.x >= 32 ? 2 : 1,
+                                  area.size.x / std::max( preferred_width, 16 ) );
+    std::vector<int> used( columns, 0 );
+    std::vector<int> assignments;
+    for( const int height : heights ) {
+        const int column = std::min_element( used.begin(), used.end() ) - used.begin();
+        assignments.push_back( column );
+        used[column] += std::max( height == -2 ? 3 : height, 0 ) + spacer;
+    }
+
+    std::vector<int> y( columns, 0 );
+    std::vector<region> result;
+    for( size_t i = 0; i < heights.size(); ++i ) {
+        const int column = assignments[i];
+        int height = std::max( heights[i] == -2 ? 3 : heights[i], 0 ) + spacer;
+        if( heights[i] == -2 ) {
+            height += std::max( area.size.y - used[column], 0 );
+        }
+        height = std::min( height, std::max( area.size.y - y[column], 0 ) );
+        const int x = column * area.size.x / columns;
+        const int width = ( column + 1 ) * area.size.x / columns - x;
+        result.push_back( { area.pos + point( x, y[column] ), point( width, height ) } );
+        y[column] += height;
+    }
+    return result;
 }
 
 std::array<region, 2> transfer_panes( const point &grid, const int header_height,
