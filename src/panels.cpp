@@ -512,7 +512,8 @@ std::string panel_manager::get_current_layout_id() const
 
 int panel_manager::get_width_right() const
 {
-    if( game_ui::is_portrait_layout() ) {
+    if( game_ui::is_portrait_layout() ||
+        get_option<std::string>( "SIDEBAR_POSITION" ) == "bottom" ) {
         return 0;
     }
     if( get_option<std::string>( "SIDEBAR_POSITION" ) == "left" ) {
@@ -523,7 +524,8 @@ int panel_manager::get_width_right() const
 
 int panel_manager::get_width_left() const
 {
-    if( game_ui::is_portrait_layout() ) {
+    if( game_ui::is_portrait_layout() ||
+        get_option<std::string>( "SIDEBAR_POSITION" ) == "bottom" ) {
         return 0;
     }
     if( get_option<std::string>( "SIDEBAR_POSITION" ) == "left" ) {
